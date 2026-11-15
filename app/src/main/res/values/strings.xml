@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PhotoStash</string>
+    <string name="tab_pack">Hide Files</string>
+    <string name="tab_extract">Extract</string>
+    <string name="pack_subtitle">Bundle files into a PNG with a visual index</string>
+    <string name="extract_subtitle">Inspect and recover files hidden inside PNGs</string>
+</resources>
