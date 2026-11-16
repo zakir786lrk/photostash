@@ -112,9 +112,6 @@ object FileUtils {
                         val exif = ExifInterface(pfd.fileDescriptor)
                         exif.setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, description)
                         exif.setAttribute(ExifInterface.TAG_USER_COMMENT, description)
-                        if (!title.isNullOrBlank()) {
-                            exif.setAttribute(ExifInterface.TAG_DOCUMENT_NAME, title)
-                        }
                         exif.saveAttributes()
                     }
                 } catch (ex: Exception) {
