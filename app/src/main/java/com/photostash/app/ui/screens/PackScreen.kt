@@ -85,9 +85,10 @@ fun PackScreen(
     val scope = rememberCoroutineScope()
 
     var archiveTitle by remember { mutableStateOf("My Documents") }
+    val initialDateStr = remember { SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date()) }
+    var isCustomFileName by remember { mutableStateOf(false) }
     var outputFileName by remember {
-        val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        mutableStateOf("Stash_$dateStr.png")
+        mutableStateOf("My Documents_$initialDateStr.png")
     }
 
     val selectedFiles = remember { mutableStateListOf<FileInfo>() }
@@ -154,7 +155,13 @@ fun PackScreen(
 
                         OutlinedTextField(
                             value = archiveTitle,
-                            onValueChange = { archiveTitle = it },
+                            onValueChange = { newTitle ->
+                                archiveTitle = newTitle
+                                if (!isCustomFileName) {
+                                    val safe = newTitle.trim().ifBlank { "PhotoStash" }
+                                    outputFileName = "${safe}_$initialDateStr.png"
+                                }
+                            },
                             placeholder = { Text("e.g. Tax Invoices & Work Docs", color = TextMuted) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentGreen,
@@ -313,7 +320,10 @@ fun PackScreen(
 
                         OutlinedTextField(
                             value = outputFileName,
-                            onValueChange = { outputFileName = it },
+                            onValueChange = {
+                                outputFileName = it
+                                isCustomFileName = true
+                            },
                             placeholder = { Text("photo.png", color = TextMuted) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentGreen,

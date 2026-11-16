@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -64,6 +65,8 @@ object FileUtils {
     fun saveImageToMediaStore(
         context: Context,
         displayName: String,
+        title: String? = null,
+        description: String? = null,
         writeBlock: (OutputStream) -> Unit
     ): Uri? {
         val filename = if (displayName.endsWith(".png", ignoreCase = true)) {
@@ -75,6 +78,12 @@ object FileUtils {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (!title.isNullOrBlank()) {
+                put(MediaStore.Images.Media.TITLE, title)
+            }
+            if (!description.isNullOrBlank()) {
+                put(MediaStore.Images.Media.DESCRIPTION, description)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PhotoStash")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
@@ -95,6 +104,22 @@ object FileUtils {
         try {
             resolver.openOutputStream(imageUri)?.use { outputStream ->
                 writeBlock(outputStream)
+            }
+
+            if (!description.isNullOrBlank()) {
+                try {
+                    resolver.openFileDescriptor(imageUri, "rw")?.use { pfd ->
+                        val exif = ExifInterface(pfd.fileDescriptor)
+                        exif.setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, description)
+                        exif.setAttribute(ExifInterface.TAG_USER_COMMENT, description)
+                        if (!title.isNullOrBlank()) {
+                            exif.setAttribute(ExifInterface.TAG_DOCUMENT_NAME, title)
+                        }
+                        exif.saveAttributes()
+                    }
+                } catch (ex: Exception) {
+                    ex.printStackTrace()
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

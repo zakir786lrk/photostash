@@ -8,15 +8,17 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.os.Build
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import kotlin.math.max
 
 object VisualCardGenerator {
 
     private const val CARD_WIDTH = 1080
-    private const val PADDING_X = 64f
-    private const val PADDING_TOP = 80f
-    private const val ITEM_HEIGHT = 100f
-    private const val MAX_VISIBLE_ITEMS = 12
+    private const val PADDING_X = 52f
+    private const val PADDING_TOP = 72f
 
     fun generateCoverBitmap(
         title: String,
@@ -27,9 +29,39 @@ object VisualCardGenerator {
         val totalSizeBytes = files.sumOf { it.size }
         val formattedTotalSize = FileUtils.formatFileSize(totalSizeBytes)
 
-        // Calculate dynamic height based on number of items
-        val displayedCount = files.size.coerceAtMost(MAX_VISIBLE_ITEMS)
-        val calculatedHeight = PADDING_TOP + 280f + (displayedCount * ITEM_HEIGHT) + 220f
+        val useTwoColumns = totalFiles > 8
+        val maxGridItems = if (useTwoColumns) 40 else 8
+        val displayedGridCount = files.size.coerceAtMost(maxGridItems)
+
+        val rowHeight = if (useTwoColumns) 72f else 88f
+        val numRows = if (useTwoColumns) (displayedGridCount + 1) / 2 else displayedGridCount
+        val gridHeight = numRows * rowHeight
+
+        // Prepare OCR keywords text containing all file names for Google Photos OCR search
+        val ocrKeywords = files.joinToString("   •   ") { it.name }
+        val ocrTextPaint = TextPaint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#E6EDF3")
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textSize = 23f
+        }
+        val ocrBoxInnerWidth = (CARD_WIDTH - 2 * PADDING_X - 44f).toInt()
+        val ocrLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            StaticLayout.Builder.obtain(ocrKeywords, 0, ocrKeywords.length, ocrTextPaint, ocrBoxInnerWidth)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setLineSpacing(6f, 1f)
+                .setIncludePad(false)
+                .build()
+        } else {
+            @Suppress("DEPRECATION")
+            StaticLayout(ocrKeywords, ocrTextPaint, ocrBoxInnerWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 6f, false)
+        }
+        val ocrSectionHeight = 80f + ocrLayout.height.toFloat() + 28f
+
+        // Calculate total card height
+        val headerHeight = 310f
+        val footerHeight = 90f
+        val calculatedHeight = PADDING_TOP + headerHeight + gridHeight + ocrSectionHeight + footerHeight
         val cardHeight = max(1350, calculatedHeight.toInt())
 
         val bitmap = Bitmap.createBitmap(CARD_WIDTH, cardHeight, Bitmap.Config.ARGB_8888)
@@ -40,7 +72,7 @@ object VisualCardGenerator {
             isAntiAlias = true
             shader = LinearGradient(
                 0f, 0f, 0f, cardHeight.toFloat(),
-                intArrayOf(Color.parseColor("#0E1117"), Color.parseColor("#161B22")),
+                intArrayOf(Color.parseColor("#0D1117"), Color.parseColor("#161B22")),
                 null,
                 Shader.TileMode.CLAMP
             )
@@ -51,11 +83,11 @@ object VisualCardGenerator {
         val borderPaint = Paint().apply {
             isAntiAlias = true
             style = Paint.Style.STROKE
-            strokeWidth = 4f
-            color = Color.parseColor("#21262D")
+            strokeWidth = 3f
+            color = Color.parseColor("#30363D")
         }
-        val outerRect = RectF(20f, 20f, CARD_WIDTH - 20f, cardHeight - 20f)
-        canvas.drawRoundRect(outerRect, 28f, 28f, borderPaint)
+        val outerRect = RectF(16f, 16f, CARD_WIDTH - 16f, cardHeight - 16f)
+        canvas.drawRoundRect(outerRect, 24f, 24f, borderPaint)
 
         // 2. Header Tag Badge: "PHOTOSTASH ARCHIVE"
         val badgeBgPaint = Paint().apply {
@@ -67,62 +99,71 @@ object VisualCardGenerator {
             isAntiAlias = true
             color = Color.parseColor("#0E1117")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 28f
+            textSize = 26f
         }
-        val badgeRect = RectF(PADDING_X, PADDING_TOP, PADDING_X + 340f, PADDING_TOP + 56f)
-        canvas.drawRoundRect(badgeRect, 28f, 28f, badgeBgPaint)
-        canvas.drawText("🔒 PHOTOSTASH ARCHIVE", PADDING_X + 24f, PADDING_TOP + 38f, badgeTextPaint)
+        val badgeRect = RectF(PADDING_X, PADDING_TOP, PADDING_X + 320f, PADDING_TOP + 52f)
+        canvas.drawRoundRect(badgeRect, 26f, 26f, badgeBgPaint)
+        canvas.drawText("🔒 PHOTOSTASH ARCHIVE", PADDING_X + 20f, PADDING_TOP + 36f, badgeTextPaint)
 
         // 3. Title
         val titlePaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#F0F6FC")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 52f
+            textSize = 48f
         }
         val safeTitle = title.ifBlank { "Embedded File Archive" }
-        val truncatedTitle = if (safeTitle.length > 28) safeTitle.take(25) + "..." else safeTitle
-        canvas.drawText(truncatedTitle, PADDING_X, PADDING_TOP + 130f, titlePaint)
+        val maxTitleLen = 35
+        val truncatedTitle = if (safeTitle.length > maxTitleLen) safeTitle.take(maxTitleLen - 3) + "..." else safeTitle
+        canvas.drawText(truncatedTitle, PADDING_X, PADDING_TOP + 120f, titlePaint)
 
         // 4. Timestamp & Stats
         val subPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#8B949E")
             typeface = Typeface.DEFAULT
-            textSize = 30f
+            textSize = 28f
         }
-        canvas.drawText("Created: $timestamp", PADDING_X, PADDING_TOP + 180f, subPaint)
+        canvas.drawText("Created: $timestamp", PADDING_X, PADDING_TOP + 168f, subPaint)
 
         // Stats Pill Bar: [Count] | [Total Size]
-        val statsY = PADDING_TOP + 215f
+        val statsY = PADDING_TOP + 200f
         val statsBgPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#21262D")
         }
-        val statsRect = RectF(PADDING_X, statsY, CARD_WIDTH - PADDING_X, statsY + 64f)
-        canvas.drawRoundRect(statsRect, 16f, 16f, statsBgPaint)
+        val statsRect = RectF(PADDING_X, statsY, CARD_WIDTH - PADDING_X, statsY + 58f)
+        canvas.drawRoundRect(statsRect, 14f, 14f, statsBgPaint)
 
         val statsTextPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#E6EDF3")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 28f
+            textSize = 26f
         }
-        val statsText = "📦 $totalFiles Files  •  💾 $formattedTotalSize Total  •  PNG Polyglot"
-        canvas.drawText(statsText, PADDING_X + 28f, statsY + 42f, statsTextPaint)
+        val statsText = "📦 $totalFiles Files   •   💾 $formattedTotalSize Total   •   PNG Polyglot Archive"
+        canvas.drawText(statsText, PADDING_X + 24f, statsY + 38f, statsTextPaint)
 
-        // 5. Files List Header
-        val listStartY = statsY + 110f
+        // 5. Section Header
+        val listStartY = statsY + 95f
         val sectionPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#8B949E")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 26f
+            textSize = 24f
+            letterSpacing = 0.06f
         }
-        canvas.drawText("EMBEDDED CONTENTS", PADDING_X, listStartY, sectionPaint)
+        canvas.drawText("EMBEDDED CONTENTS (${totalFiles} FILES)", PADDING_X, listStartY, sectionPaint)
 
-        // 6. File Rows
-        var currentY = listStartY + 30f
+        // 6. Draw Grid of Files
+        val gridStartY = listStartY + 20f
+        val colGap = 20f
+        val colWidth = if (useTwoColumns) {
+            (CARD_WIDTH - 2 * PADDING_X - colGap) / 2f
+        } else {
+            CARD_WIDTH - 2 * PADDING_X
+        }
+
         val itemBgPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#161B22")
@@ -130,91 +171,136 @@ object VisualCardGenerator {
         val itemBorderPaint = Paint().apply {
             isAntiAlias = true
             style = Paint.Style.STROKE
-            strokeWidth = 2f
+            strokeWidth = 1.5f
             color = Color.parseColor("#30363D")
         }
         val fileNamePaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#F0F6FC")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 32f
+            textSize = if (useTwoColumns) 24f else 28f
         }
         val fileSizePaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#8B949E")
             typeface = Typeface.DEFAULT
-            textSize = 28f
+            textSize = if (useTwoColumns) 20f else 24f
+        }
+        val extTextPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.WHITE
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = if (useTwoColumns) 19f else 22f
         }
 
-        files.take(MAX_VISIBLE_ITEMS).forEach { file ->
-            val rowRect = RectF(PADDING_X, currentY, CARD_WIDTH - PADDING_X, currentY + 84f)
-            canvas.drawRoundRect(rowRect, 16f, 16f, itemBgPaint)
-            canvas.drawRoundRect(rowRect, 16f, 16f, itemBorderPaint)
+        files.take(displayedGridCount).forEachIndexed { index, file ->
+            val col = if (useTwoColumns) index % 2 else 0
+            val row = if (useTwoColumns) index / 2 else index
 
-            // Extension pill badge
+            val colLeft = PADDING_X + col * (colWidth + colGap)
+            val colRight = colLeft + colWidth
+            val rowTop = gridStartY + row * rowHeight
+            val rowBottom = rowTop + (rowHeight - 10f)
+
+            val rowRect = RectF(colLeft, rowTop, colRight, rowBottom)
+            canvas.drawRoundRect(rowRect, 12f, 12f, itemBgPaint)
+            canvas.drawRoundRect(rowRect, 12f, 12f, itemBorderPaint)
+
+            // Extension Pill Badge
+            val pillWidth = if (useTwoColumns) 64f else 80f
+            val pillHeight = rowBottom - rowTop - 18f
+            val pillLeft = colLeft + 10f
+            val pillTop = rowTop + 9f
+            val pillRect = RectF(pillLeft, pillTop, pillLeft + pillWidth, pillTop + pillHeight)
+
             val extColor = getExtensionBadgeColor(file.extension)
             val extBgPaint = Paint().apply {
                 isAntiAlias = true
                 color = extColor
             }
-            val extTextPaint = Paint().apply {
-                isAntiAlias = true
-                color = Color.WHITE
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textSize = 22f
-            }
-            val extPill = RectF(PADDING_X + 16f, currentY + 16f, PADDING_X + 116f, currentY + 68f)
-            canvas.drawRoundRect(extPill, 12f, 12f, extBgPaint)
+            canvas.drawRoundRect(pillRect, 8f, 8f, extBgPaint)
 
-            val extText = file.extension.take(4)
-            val extWidth = extTextPaint.measureText(extText)
+            val extLabel = file.extension.take(4)
+            val extTextW = extTextPaint.measureText(extLabel)
             canvas.drawText(
-                extText,
-                extPill.centerX() - (extWidth / 2f),
-                extPill.centerY() + 8f,
+                extLabel,
+                pillRect.centerX() - (extTextW / 2f),
+                pillRect.centerY() + 7f,
                 extTextPaint
             )
 
-            // File Name
-            val maxNameLen = 32
-            val nameDisplay = if (file.name.length > maxNameLen) {
-                file.name.take(maxNameLen - 3) + "..."
+            // File Name & Size
+            val textLeft = pillLeft + pillWidth + 12f
+            val maxTextWidth = colWidth - (pillWidth + 28f)
+
+            if (useTwoColumns) {
+                // In 2-column mode: Show filename prominently for OCR
+                val maxChars = 27
+                val display = if (file.name.length > maxChars) {
+                    file.name.take(maxChars - 3) + "..."
+                } else {
+                    file.name
+                }
+                canvas.drawText(display, textLeft, rowTop + 38f, fileNamePaint)
             } else {
-                file.name
+                // In 1-column mode: Show filename and right-aligned size
+                val sizeStr = file.formattedSize
+                val sizeW = fileSizePaint.measureText(sizeStr)
+                val sizeX = colRight - 16f - sizeW
+                canvas.drawText(sizeStr, sizeX, rowTop + 48f, fileSizePaint)
+
+                val availForName = sizeX - textLeft - 16f
+                val maxChars = 34
+                val display = if (file.name.length > maxChars) {
+                    file.name.take(maxChars - 3) + "..."
+                } else {
+                    file.name
+                }
+                canvas.drawText(display, textLeft, rowTop + 48f, fileNamePaint)
             }
-            canvas.drawText(nameDisplay, PADDING_X + 136f, currentY + 54f, fileNamePaint)
-
-            // File Size (Right aligned)
-            val sizeStr = file.formattedSize
-            val sizeWidth = fileSizePaint.measureText(sizeStr)
-            canvas.drawText(sizeStr, CARD_WIDTH - PADDING_X - 24f - sizeWidth, currentY + 54f, fileSizePaint)
-
-            currentY += ITEM_HEIGHT
         }
 
-        // If truncated
-        if (files.size > MAX_VISIBLE_ITEMS) {
-            val moreCount = files.size - MAX_VISIBLE_ITEMS
-            val morePaint = Paint().apply {
-                isAntiAlias = true
-                color = Color.parseColor("#58A6FF")
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textSize = 28f
-            }
-            canvas.drawText("+ $moreCount more files included inside", PADDING_X + 16f, currentY + 36f, morePaint)
-            currentY += 50f
+        // 7. OCR Searchable Keywords Card (Every single file name rendered for Google Photos OCR)
+        val ocrCardTop = gridStartY + gridHeight + 20f
+        val ocrCardRect = RectF(PADDING_X, ocrCardTop, CARD_WIDTH - PADDING_X, ocrCardTop + ocrSectionHeight)
+        val ocrCardBgPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#13171F")
         }
+        val ocrCardBorderPaint = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = Color.parseColor("#238636")
+        }
+        canvas.drawRoundRect(ocrCardRect, 14f, 14f, ocrCardBgPaint)
+        canvas.drawRoundRect(ocrCardRect, 14f, 14f, ocrCardBorderPaint)
 
-        // 7. Footer Notice
-        val footerY = cardHeight - 70f
+        val ocrHeaderPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#10B981")
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 22f
+            letterSpacing = 0.05f
+        }
+        canvas.drawText("🔍 SEARCHABLE FILE INDEX (GOOGLE PHOTOS OCR)", PADDING_X + 20f, ocrCardTop + 38f, ocrHeaderPaint)
+
+        // Draw wrapped file list
+        canvas.save()
+        canvas.translate(PADDING_X + 22f, ocrCardTop + 56f)
+        ocrLayout.draw(canvas)
+        canvas.restore()
+
+        // 8. Footer Notice
+        val footerY = cardHeight - 48f
         val footerPaint = Paint().apply {
             isAntiAlias = true
             color = Color.parseColor("#6E7681")
             typeface = Typeface.DEFAULT
-            textSize = 24f
+            textSize = 22f
         }
         canvas.drawText(
-            "Extract with PhotoStash Android App or run: unzip <image.png>",
+            "PhotoStash Polyglot • Extract with PhotoStash Android app or run: unzip <image.png>",
             PADDING_X,
             footerY,
             footerPaint
