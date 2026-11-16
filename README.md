@@ -1,6 +1,6 @@
-# PolyPic: Open Source Android File-to-Image Packer
+# PhotoStash: Open Source Android File-to-Image Packer
 
-**PolyPic** is an open-source Android utility written in Kotlin & Jetpack Compose that bundles multiple arbitrary files (PDFs, spreadsheets, text documents, archives) into a standalone PNG image file.
+**PhotoStash** is an open-source Android utility written in Kotlin & Jetpack Compose that bundles multiple arbitrary files (PDFs, spreadsheets, text documents, archives) into a standalone PNG image file.
 
 The output image features an automatically generated **visual index card** listing the archive title, timestamps, file names, file types, and sizes directly on the graphic, allowing you to instantly identify the stored contents from any standard photo viewer or gallery.
 
@@ -10,7 +10,7 @@ The output image features an automatically generated **visual index card** listi
 
 - **Automated Visual Index Card**: Dynamically generates an image card listing all included files, badges for each file format, sizes, and total count.
 - **Polyglot PNG + ZIP Format**: The resulting image is 100% valid PNG format for image viewers, while simultaneously remaining a valid ZIP archive extractable with `unzip` or the app's extraction tab.
-- **Direct Gallery & MediaStore Integration**: Exports directly to `Pictures/PolyPic` so Android photo apps and cloud backup services detect it immediately.
+- **Direct Gallery & MediaStore Integration**: Exports directly to `Pictures/PhotoStash` so Android photo apps and cloud backup services detect it immediately.
 - **Built-in Extractor**: Pick any polyglot image, preview the embedded files, and restore them directly to your `Downloads` directory.
 - **Modern Jetpack Compose UI**: Built with Material Design 3 and dark theme support.
 - **Automated GitHub Actions CI**: Compiles and releases installable APK artifacts on every commit or release tag.
